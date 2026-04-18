@@ -3,13 +3,13 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-# ویب سائٹ کی سیٹنگ
+# Page Settings
 st.set_page_config(page_title="Arif Khan Marble", layout="wide")
 
-# گوگل شیٹ سے کنکشن
+# Google Sheet Connection
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# سادہ لاگ ان سسٹم
+# Login System
 if 'auth' not in st.session_state:
     st.session_state['auth'] = False
 
@@ -18,53 +18,60 @@ if not st.session_state['auth']:
     user = st.text_input("User Name")
     passw = st.text_input("Password", type="password")
     if st.button("Login"):
-        if user == "arif" and passw == "123": # یہاں آپ اپنا پاس ورڈ بدل سکتے ہیں
+        # Yahan aap apna username aur password check kar sakte hain
+        if user.lower() == "arif" and passw == "123":
             st.session_state['auth'] = True
             st.session_state['username'] = user
             st.rerun()
+        else:
+            st.error("Ghalat User Name ya Password!")
 else:
-    st.sidebar.title(f"خوش آمدید، {st.session_state['username']}")
+    st.sidebar.success(f"Khush Amdeed: {st.session_state['username']}")
     menu = ["📊 Dashboard", "🚚 Gari Entry", "📒 Full Record"]
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "🚚 Gari Entry":
-        st.header("نئی گاڑی کا حساب")
+        st.header("Nayi Gari ka Hisab")
         with st.form("gari_form"):
-            g_no = st.text_input("Gari No")
-            pera = st.selectbox("Pera", ["Pehla", "Doosra", "Teesra"])
-            ton = st.number_input("Tons", min_value=0.0)
-            cost = st.number_input("ٹوٹل خرچہ (پتھر کی قیمت + کرائی + چرائی)", min_value=0)
-            feet = st.number_input("Total Feet", min_value=0)
-            sale_rate = st.number_input("Average Sale Rate", min_value=0)
+            g_no = st.text_input("Gari Number")
+            pera = st.selectbox("Pera Select Karen", ["Pehla Pera", "Doosra Pera", "Teesra Pera"])
+            ton = st.number_input("Kul Tan (Tons)", min_value=0.0)
+            cost = st.number_input("Kul Kharcha (Pahad + Kiraya + Charai)", min_value=0)
+            feet = st.number_input("Tayar Feet", min_value=0)
+            rate = st.number_input("Average Sale Rate", min_value=0)
             
             if st.form_submit_button("Sheet mein Save Karen"):
-                # حساب کتاب
-                total_sale = feet * sale_rate
-                pl = total_sale - cost
+                sale = feet * rate
+                pl = sale - cost
                 
-                # نیا ڈیٹا
-                new_entry = pd.DataFrame([{
+                new_data = pd.DataFrame([{
                     "Date": str(datetime.now().date()),
                     "User": st.session_state['username'],
                     "Gari": g_no, "Pera": pera, "Tons": ton,
-                    "Total_Cost": cost, "Total_Sale": total_sale, "Profit_Loss": pl
+                    "Cost": cost, "Sale": sale, "Profit_Loss": pl
                 }])
                 
-                # شیٹ میں ڈیٹا بھیجنا
-                old_data = conn.read(worksheet="Sheet1")
-                updated_df = pd.concat([old_data, new_entry], ignore_index=True)
-                conn.update(worksheet="Sheet1", data=updated_df)
-                st.success(f"Gari {g_no} ka record save ho gaya!")
+                # Reading and Updating Google Sheet
+                try:
+                    df = conn.read(worksheet="Sheet1")
+                    updated_df = pd.concat([df, new_data], ignore_index=True)
+                    conn.update(worksheet="Sheet1", data=updated_df)
+                    st.success(f"Gari {g_no} ka record save ho gaya!")
+                except:
+                    st.error("Google Sheet connect nahi ho saki. Check Secrets!")
 
     elif choice == "📊 Dashboard":
-        st.header("آپ کا کل منافع اور نقصان")
-        data = conn.read(worksheet="Sheet1")
-        # صرف اس یوزر کا ڈیٹا دکھانا
-        user_data = data[data['User'] == st.session_state['username']]
-        if not user_data.empty:
-            total_pl = user_data['Profit_Loss'].sum()
-            st.metric("Net Profit/Loss", f"Rs. {total_pl:,.0f}")
-            st.dataframe(user_data)
-        else:
-            st.info("ابھی تک کوئی ریکارڈ نہیں ہے")
+        st.header("Karobar ki Report")
+        try:
+            data = conn.read(worksheet="Sheet1")
+            user_data = data[data['User'] == st.session_state['username']]
+            if not user_data.empty:
+                col1, col2 = st.columns(2)
+                col1.metric("Kul Garian", len(user_data))
+                col2.metric("Total Profit/Loss", f"Rs. {user_data['Profit_Loss'].sum():,.0f}")
+                st.dataframe(user_data)
+            else:
+                st.info("Abhi koi record nahi mila.")
+        except:
+            st.warning("Data load nahi ho raha. Pehli entry karen.")
             
