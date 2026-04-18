@@ -2,87 +2,79 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-# Website ki setting aur Title
-st.set_page_config(page_title="Arif Khan Marble Supplier", layout="centered")
+st.set_page_config(page_title="Arif Khan Marble Supplier", layout="wide")
 
-# CSS Styling (Design ke liye)
-st.markdown("""
-    <style>
-    .main { background-color: #f0f2f6; }
-    .stHeader { color: #1E3A8A; }
-    .stButton>button { background-color: #1E3A8A; color: white; font-weight: bold; border-radius: 8px; }
-    </style>
-    """, unsafe_allow_html=True)
+# Database initialize (Temporary)
+if 'gari_records' not in st.session_state:
+    st.session_state['gari_records'] = []
 
 st.title("🏗️ Arif Khan Marble Supplier")
-st.write("Pathar ki khareedari se le kar sale aur munafa tak ka mukammal hisab.")
 
-# Sidebar Menu (Button ki tarah)
-menu = ["📊 Dashboard", "📥 Naya Maal (Purchase)", "💰 Daily Sale", "📒 Udhaar / Khata"]
-choice = st.sidebar.selectbox("Main Menu", menu)
+menu = ["📊 Dashboard", "🚚 Gari ki Entry (Nafa/Nuqsan)", "📒 Records"]
+choice = st.sidebar.selectbox("Menu", menu)
 
-# 1. NAYA MAAL (PURCHASE LOGIC)
-if choice == "📥 Naya Maal (Purchase)":
-    st.header("Pahad se Maal ki Khareedari")
+if choice == "🚚 Gari ki Entry (Nafa/Nuqsan)":
+    st.header("Gari aur Pera (Lot) ka Mukammal Hisab")
     
-    with st.container():
-        stone = st.selectbox("Pathar ki Kism", ["Badal", "Ziarat White", "Sunny Grey", "Chitral White", "Other"])
+    with st.form("gari_form"):
         col1, col2 = st.columns(2)
         
         with col1:
-            tons = st.number_input("Tan (Tons)", min_value=0.0, step=1.0)
-            p_price = st.number_input("Pahad ki Qeemat (Total)", min_value=0.0)
-            gari_kiraya = st.number_input("Gari ka Kiraya", min_value=0.0)
+            gari_no = st.text_input("Gari Number / Driver")
+            pera_type = st.radio("Pera (Lot) Select Karen", ["Pehla Pera", "Doosra Pera", "Teesra Pera"])
+            tons = st.number_input("Kul Tan (Tons)", min_value=0.0)
+            purchase_cost = st.number_input("Pahad ki Qeemat + Kiraya", min_value=0)
+            cutting_expenses = st.number_input("Charai + Mazdoori + Other", min_value=0)
         
         with col2:
-            charai = st.number_input("Charai (Cutting Kharcha)", min_value=0.0)
-            resize = st.number_input("Selection / Resize Kharcha", min_value=0.0)
-            mazdoori = st.number_input("Bhrai / Utrai Mazdoori", min_value=0.0)
-            
-        total_feet = st.number_input("Tayar shuda Foot (Total Sq. Ft)", min_value=0.0)
+            st.info("Sale ki Detail")
+            total_feet = st.number_input("Gari se Nikla Kul Foot (Sq. Ft)", min_value=0)
+            avg_sale_rate = st.number_input("Average Sale Rate (Per Foot)", min_value=0)
+            extra_income = st.number_input("Koi aur Aamadni (Kachra/Chips)", min_value=0)
 
-    if st.button("Hisaab Lagayen"):
-        total_investment = p_price + gari_kiraya + charai + resize + mazdoori
-        cost_per_foot = total_investment / total_feet if total_feet > 0 else 0
+        submit = st.form_submit_button("Gari ka Hisab Check Karen")
         
-        st.success(f"Apka Kul Kharcha: **Rs. {total_investment:,.2f}**")
-        st.info(f"Apko ye maal **Rs. {cost_per_foot:.2f} Per Foot** mein para hai.")
-        # Is data ko save karne ka logic yahan add ho sakta hai
+        if submit:
+            # Calculations
+            total_cost = purchase_cost + cutting_expenses
+            total_sale = (total_feet * avg_sale_rate) + extra_income
+            profit_loss = total_sale - total_cost
+            
+            # Record save karna
+            st.session_state['gari_records'].append({
+                "Gari": gari_no, "Pera": pera_type, "Cost": total_cost, 
+                "Sale": total_sale, "P_L": profit_loss
+            })
+            
+            st.divider()
+            st.subheader("Nateeja (Result)")
+            if profit_loss > 0:
+                st.success(f"Mubarak! Is gari par Rs. {profit_loss:,.2f} MUNAFA hua hai.")
+            elif profit_loss < 0:
+                st.error(f"Afsos! Is gari par Rs. {abs(profit_loss):,.2f} NUQSAN hua hai.")
+            else:
+                st.warning("Barabar raha, na nafa na nuqsan.")
 
-# 2. DAILY SALE
-elif choice == "💰 Daily Sale":
-    st.header("Grahak Sale Entry")
-    customer = st.text_input("Grahak ka Naam")
-    feet_sold = st.number_input("Kitne Foot Becha?", min_value=0.0)
-    rate = st.number_input("Kis Rate par becha?", min_value=0.0)
-    paid = st.number_input("Kitne Paise Wasool Hue?", min_value=0.0)
-    
-    if st.button("Sale Record Karen"):
-        total_bill = feet_sold * rate
-        balance = total_bill - paid
-        st.write(f"Total Bill: Rs. {total_bill:,.2f}")
-        if balance > 0:
-            st.warning(f"Baqi Udhaar: Rs. {balance:,.2f}")
-        else:
-            st.success("Poori Payment Mil Gayi!")
-
-# 3. KHATA / UDHAAR (DUMMY DATA FOR VIEW)
-elif choice == "📒 Udhaar / Khata":
-    st.header("Logon ka Udhaar (Summary)")
-    # Sample Table
-    khata_data = {
-        "Naam": ["Ali Khan", "Zubair Shah", "Bilal Marble"],
-        "Paisa Lena (Lena)": [45000, 15000, 0],
-        "Paisa Dena (Dena)": [0, 0, 30000]
-    }
-    df = pd.DataFrame(khata_data)
-    st.table(df)
-
-# 4. DASHBOARD
 elif choice == "📊 Dashboard":
-    st.header("Karobar ki Report")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Stock", "4,200 Ft")
-    col2.metric("Aaj ki Sale", "Rs. 25,000")
-    col3.metric("Baqi Udhaar", "Rs. 1,20,000")
+    st.header("Karobar ka Kul Nafa Nuqsan")
+    if st.session_state['gari_records']:
+        df = pd.DataFrame(st.session_state['gari_records'])
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Garian", len(df))
+        col2.metric("Total Sale", f"Rs. {df['Sale'].sum():,.0f}")
+        total_pl = df['P_L'].sum()
+        col3.metric("Net Profit/Loss", f"Rs. {total_pl:,.0f}", delta=float(total_pl))
+        
+        st.write("### Pera (Lot) ke Hisab se Performance")
+        st.bar_chart(df.set_index('Pera')['P_L'])
+    else:
+        st.info("Abhi tak koi gari record nahi ki gayi.")
+
+elif choice == "📒 Records":
+    st.header("Purani Gariyon ka Record")
+    if st.session_state['gari_records']:
+        st.table(pd.DataFrame(st.session_state['gari_records']))
+    else:
+        st.write("Record khali hai.")
+    
           
