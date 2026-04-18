@@ -1,80 +1,70 @@
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="Arif Khan Marble Supplier", layout="wide")
+# ویب سائٹ کی سیٹنگ
+st.set_page_config(page_title="Arif Khan Marble", layout="wide")
 
-# Database initialize (Temporary)
-if 'gari_records' not in st.session_state:
-    st.session_state['gari_records'] = []
+# گوگل شیٹ سے کنکشن
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-st.title("🏗️ Arif Khan Marble Supplier")
+# سادہ لاگ ان سسٹم
+if 'auth' not in st.session_state:
+    st.session_state['auth'] = False
 
-menu = ["📊 Dashboard", "🚚 Gari ki Entry (Nafa/Nuqsan)", "📒 Records"]
-choice = st.sidebar.selectbox("Menu", menu)
+if not st.session_state['auth']:
+    st.header("Arif Khan Marble - Login")
+    user = st.text_input("User Name")
+    passw = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if user == "arif" and passw == "123": # یہاں آپ اپنا پاس ورڈ بدل سکتے ہیں
+            st.session_state['auth'] = True
+            st.session_state['username'] = user
+            st.rerun()
+else:
+    st.sidebar.title(f"خوش آمدید، {st.session_state['username']}")
+    menu = ["📊 Dashboard", "🚚 Gari Entry", "📒 Full Record"]
+    choice = st.sidebar.selectbox("Menu", menu)
 
-if choice == "🚚 Gari ki Entry (Nafa/Nuqsan)":
-    st.header("Gari aur Pera (Lot) ka Mukammal Hisab")
-    
-    with st.form("gari_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            gari_no = st.text_input("Gari Number / Driver")
-            pera_type = st.radio("Pera (Lot) Select Karen", ["Pehla Pera", "Doosra Pera", "Teesra Pera"])
-            tons = st.number_input("Kul Tan (Tons)", min_value=0.0)
-            purchase_cost = st.number_input("Pahad ki Qeemat + Kiraya", min_value=0)
-            cutting_expenses = st.number_input("Charai + Mazdoori + Other", min_value=0)
-        
-        with col2:
-            st.info("Sale ki Detail")
-            total_feet = st.number_input("Gari se Nikla Kul Foot (Sq. Ft)", min_value=0)
-            avg_sale_rate = st.number_input("Average Sale Rate (Per Foot)", min_value=0)
-            extra_income = st.number_input("Koi aur Aamadni (Kachra/Chips)", min_value=0)
-
-        submit = st.form_submit_button("Gari ka Hisab Check Karen")
-        
-        if submit:
-            # Calculations
-            total_cost = purchase_cost + cutting_expenses
-            total_sale = (total_feet * avg_sale_rate) + extra_income
-            profit_loss = total_sale - total_cost
+    if choice == "🚚 Gari Entry":
+        st.header("نئی گاڑی کا حساب")
+        with st.form("gari_form"):
+            g_no = st.text_input("Gari No")
+            pera = st.selectbox("Pera", ["Pehla", "Doosra", "Teesra"])
+            ton = st.number_input("Tons", min_value=0.0)
+            cost = st.number_input("ٹوٹل خرچہ (پتھر کی قیمت + کرائی + چرائی)", min_value=0)
+            feet = st.number_input("Total Feet", min_value=0)
+            sale_rate = st.number_input("Average Sale Rate", min_value=0)
             
-            # Record save karna
-            st.session_state['gari_records'].append({
-                "Gari": gari_no, "Pera": pera_type, "Cost": total_cost, 
-                "Sale": total_sale, "P_L": profit_loss
-            })
+            if st.form_submit_button("Sheet mein Save Karen"):
+                # حساب کتاب
+                total_sale = feet * sale_rate
+                pl = total_sale - cost
+                
+                # نیا ڈیٹا
+                new_entry = pd.DataFrame([{
+                    "Date": str(datetime.now().date()),
+                    "User": st.session_state['username'],
+                    "Gari": g_no, "Pera": pera, "Tons": ton,
+                    "Total_Cost": cost, "Total_Sale": total_sale, "Profit_Loss": pl
+                }])
+                
+                # شیٹ میں ڈیٹا بھیجنا
+                old_data = conn.read(worksheet="Sheet1")
+                updated_df = pd.concat([old_data, new_entry], ignore_index=True)
+                conn.update(worksheet="Sheet1", data=updated_df)
+                st.success(f"Gari {g_no} ka record save ho gaya!")
+
+    elif choice == "📊 Dashboard":
+        st.header("آپ کا کل منافع اور نقصان")
+        data = conn.read(worksheet="Sheet1")
+        # صرف اس یوزر کا ڈیٹا دکھانا
+        user_data = data[data['User'] == st.session_state['username']]
+        if not user_data.empty:
+            total_pl = user_data['Profit_Loss'].sum()
+            st.metric("Net Profit/Loss", f"Rs. {total_pl:,.0f}")
+            st.dataframe(user_data)
+        else:
+            st.info("ابھی تک کوئی ریکارڈ نہیں ہے")
             
-            st.divider()
-            st.subheader("Nateeja (Result)")
-            if profit_loss > 0:
-                st.success(f"Mubarak! Is gari par Rs. {profit_loss:,.2f} MUNAFA hua hai.")
-            elif profit_loss < 0:
-                st.error(f"Afsos! Is gari par Rs. {abs(profit_loss):,.2f} NUQSAN hua hai.")
-            else:
-                st.warning("Barabar raha, na nafa na nuqsan.")
-
-elif choice == "📊 Dashboard":
-    st.header("Karobar ka Kul Nafa Nuqsan")
-    if st.session_state['gari_records']:
-        df = pd.DataFrame(st.session_state['gari_records'])
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Garian", len(df))
-        col2.metric("Total Sale", f"Rs. {df['Sale'].sum():,.0f}")
-        total_pl = df['P_L'].sum()
-        col3.metric("Net Profit/Loss", f"Rs. {total_pl:,.0f}", delta=float(total_pl))
-        
-        st.write("### Pera (Lot) ke Hisab se Performance")
-        st.bar_chart(df.set_index('Pera')['P_L'])
-    else:
-        st.info("Abhi tak koi gari record nahi ki gayi.")
-
-elif choice == "📒 Records":
-    st.header("Purani Gariyon ka Record")
-    if st.session_state['gari_records']:
-        st.table(pd.DataFrame(st.session_state['gari_records']))
-    else:
-        st.write("Record khali hai.")
-    
-          
