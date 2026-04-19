@@ -17,7 +17,9 @@ with st.form("entry_form"):
     cost = st.number_input("Cost (Kharcha)", step=1, value=0)
     sale = st.number_input("Sale", step=1, value=0)
     
-    if st.form_submit_button("Sheet mein Save Karen"):
+    submit = st.form_submit_button("Sheet mein Save Karen")
+    
+    if submit:
         # Naya data taiyar karna
         new_data = pd.DataFrame([{
             "Date": str(date.today()),
@@ -30,20 +32,26 @@ with st.form("entry_form"):
             "Profit_Loss": sale - cost
         }])
         
-        # Purana data parhna aur naya jorna
-        existing_data = conn.read(ttl=0)
-        updated_df = pd.concat([existing_data, new_data], ignore_index=True)
-        
-        # Sheet update karna
-        conn.update(data=updated_df)
-        st.success(f"Mubarak ho Arif bhai! {gari} ka data save ho gaya.")
+        try:
+            # Mojooda data parhna
+            existing_data = conn.read(ttl=0)
+            if existing_data is not None and not existing_data.empty:
+                updated_df = pd.concat([existing_data, new_data], ignore_index=True)
+            else:
+                updated_df = new_data
+            
+            # Sheet update karna
+            conn.update(data=updated_df)
+            st.success(f"Mubarak ho Arif bhai! {gari} ka data save ho gaya.")
+        except Exception as e:
+            st.error(f"Error: {e}")
 
-# Purana Record Dikhana
+# Record Dikhana
 st.write("---")
-st.write("### Aapka Pichla Record:")
+st.write("### Aapka Record:")
 try:
     df = conn.read(ttl=0)
     st.dataframe(df)
 except:
-    st.info("Abhi sheet mein koi data nahi hai.")
+    st.info("Abhi data load nahi ho raha, pehli entry save karke dekhein.")
     
