@@ -1,57 +1,67 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import date
 
+# Page Title
+st.set_page_config(page_title="Arif Khan Marble System", layout="centered")
 st.title("Arif Khan Marble System")
 
-# Google Sheets Connection
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Secrets se data lena aur private key ko theek karna
+# Ye hissa mobile par hone wali extra spaces ki galti ko saaf karta hai
+service_account_info = {
+    "type": "service_account",
+    "project_id": st.secrets["connections"]["gsheets"]["project_id"],
+    "private_key_id": st.secrets["connections"]["gsheets"]["private_key_id"],
+    "private_key": st.secrets["connections"]["gsheets"]["private_key"].replace("\\n", "\n"),
+    "client_email": st.secrets["connections"]["gsheets"]["client_email"],
+    "client_id": st.secrets["connections"]["gsheets"]["client_id"],
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": st.secrets["connections"]["gsheets"]["client_x509_cert_url"],
+}
 
-# Data Entry Form
-with st.form("entry_form"):
-    st.write("### Nayi Entry Karen")
-    gari = st.text_input("Gari Number")
-    pera = st.number_input("Pera", step=1, value=0)
-    tons = st.number_input("Tons", step=0.01, value=0.0)
-    cost = st.number_input("Cost (Kharcha)", step=1, value=0)
-    sale = st.number_input("Sale", step=1, value=0)
-    
-    submit = st.form_submit_button("Sheet mein Save Karen")
-    
-    if submit:
-        # Naya data taiyar karna
-        new_data = pd.DataFrame([{
-            "Date": str(date.today()),
-            "User": "Arif",
-            "Gari": gari,
-            "Pera": pera,
-            "Tons": tons,
-            "Cost": cost,
-            "Sale": sale,
-            "Profit_Loss": sale - cost
-        }])
-        
-        try:
-            # Mojooda data parhna
-            existing_data = conn.read(ttl=0)
-            if existing_data is not None and not existing_data.empty:
-                updated_df = pd.concat([existing_data, new_data], ignore_index=True)
-            else:
-                updated_df = new_data
-            
-            # Sheet update karna
-            conn.update(data=updated_df)
-            st.success(f"Mubarak ho Arif bhai! {gari} ka data save ho gaya.")
-        except Exception as e:
-            st.error(f"Error: {e}")
-
-# Record Dikhana
-st.write("---")
-st.write("### Aapka Record:")
+# Google Sheets se connection banana
 try:
+    conn = st.connection("gsheets", type=GSheetsConnection, **service_account_info)
+    
+    # Existing Data Load Karna
     df = conn.read(ttl=0)
-    st.dataframe(df)
-except:
-    st.info("Abhi data load nahi ho raha, pehli entry save karke dekhein.")
+    
+    # Input Fields
+    with st.form("entry_form"):
+        st.subheader("Nayi Entry Darj Karein")
+        footage = st.number_input("Footage (Sqr Ft)", min_value=0.0, format="%.2f")
+        kharcha = st.number_input("Cost (Kharcha)", min_value=0)
+        sale = st.number_input("Sale Price", min_value=0)
+        
+        submit_button = st.form_submit_button("Sheet mein Save Karen")
+
+    if submit_button:
+        if footage > 0:
+            # Naya data tayyar karna
+            new_data = pd.DataFrame([{
+                "Footage": footage,
+                "Kharcha": kharcha,
+                "Sale": sale
+            }])
+            
+            # Data update karna
+            updated_df = pd.concat([df, new_data], ignore_index=True)
+            conn.update(data=updated_df)
+            st.success("Mubarak ho! Record sahi se save ho gaya hai.")
+            st.rerun()
+        else:
+            st.warning("Meherbani karke footage darj karein.")
+
+    # Record dikhane ke liye
+    st.divider()
+    st.subheader("Aapka Record:")
+    if not df.empty:
+        st.dataframe(df.tail(10)) # Sirf aakhri 10 entries
+    else:
+        st.info("Abhi data load nahi ho raha, pehli entry save karke dekhein.")
+
+except Exception as e:
+    st.error(f"Error: {e}")
     
